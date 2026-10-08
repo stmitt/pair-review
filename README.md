@@ -162,6 +162,14 @@ pair-review https://github.com/owner/repo/pull/123
 pair-review --local
 ```
 
+### Hiding generated files
+
+In the diff options (gear icon), enable **Hide generated files** to remove files
+marked `linguist-generated` in `.gitattributes` from the diff and file sidebar.
+The additions, deletions, and changed-file totals then exclude those files.
+The preference persists in your browser and works in PR and local reviews.
+Turn it off to inspect generated changes; your comments and viewed state remain intact.
+
 ### Basic Workflow
 
 1. **Review the diff** - See all file changes in a familiar GitHub-like interface

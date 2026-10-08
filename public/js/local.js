@@ -1092,6 +1092,7 @@ class LocalManager {
       const diffOptionsBtn = document.getElementById('diff-options-btn');
       if (diffOptionsBtn && window.DiffOptionsDropdown) {
         manager.diffOptionsDropdown = new window.DiffOptionsDropdown(diffOptionsBtn, {
+          onToggleGenerated: (hide) => manager.handleGeneratedToggle(hide),
           onToggleWhitespace: (hide) => manager.handleWhitespaceToggle(hide),
           onToggleMinimize: (minimized) => manager.handleMinimizeToggle(minimized),
           onScopeChange: (start, end) => this._handleScopeChange(start, end),

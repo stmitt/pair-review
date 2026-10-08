@@ -5,6 +5,7 @@ import request from 'supertest';
 import fs from 'fs';
 import os from 'os';
 import nodePath from 'path';
+import { execFileSync } from 'child_process';
 import { createTestDatabase, closeTestDatabase } from '../utils/schema';
 import { listenOnLoopback, closeServer } from '../utils/loopback-server';
 
@@ -5358,6 +5359,7 @@ describe('Local Review Diff Generated Files', () => {
 
     // Create a real temp directory for .gitattributes tests
     tempDir = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'pair-review-test-'));
+    execFileSync('git', ['init', tempDir], { stdio: 'ignore' });
 
     const result = await run(db, `
       INSERT INTO reviews (repository, status, review_type, local_path, local_head_sha)
@@ -5505,6 +5507,7 @@ describe('Local Review Diff Generated Files', () => {
     });
 
     it('should fall through to cached diff when ?base= is set but generateScopedDiff fails', async () => {
+      fs.rmSync(nodePath.join(tempDir, '.git'), { recursive: true, force: true });
       localReviewDiffs.set(reviewId, {
         diff: sampleDiff,
         stats: { unstagedChanges: 2, untrackedFiles: 0 }

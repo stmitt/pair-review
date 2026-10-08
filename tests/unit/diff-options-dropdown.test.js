@@ -489,3 +489,25 @@ describe('readPersistedDiffView', () => {
     expect(readPersistedDiffView()).toBe('unified');
   });
 });
+
+
+describe('generated file toggle', () => {
+  it('persists, activates the gear, and applies the callback', () => {
+    const onToggleGenerated = vi.fn();
+    const dropdown = createDropdown({ onToggleGenerated });
+    expect(dropdown.hideGenerated).toBe(false);
+    dropdown.hideGenerated = true;
+    expect(localStorage.getItem('pair-review-hide-generated')).toBe('true');
+    expect(dropdown._generatedCheckbox.checked).toBe(true);
+    expect(dropdown._btn.classList.contains('active')).toBe(true);
+    expect(onToggleGenerated).toHaveBeenCalledWith(true);
+    dropdown.destroy();
+    const restored = createDropdown({ onToggleGenerated });
+    expect(restored.hideGenerated).toBe(true);
+    expect(onToggleGenerated).toHaveBeenCalledTimes(2);
+    restored.hideGenerated = false;
+    expect(localStorage.getItem('pair-review-hide-generated')).toBe('false');
+    expect(restored._btn.classList.contains('active')).toBe(false);
+    restored.destroy();
+  });
+});

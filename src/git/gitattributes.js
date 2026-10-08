@@ -1,6 +1,9 @@
 // Copyright 2026 Tim Perkins (tjwp) | SPDX-License-Identifier: Apache-2.0
 const fs = require('fs').promises;
 const path = require('path');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+const defaults = { runGit: promisify(execFile) };
 
 /**
  * GitAttributes parser for detecting linguist-generated files
@@ -86,6 +89,7 @@ class GitAttributesParser {
    * @returns {boolean} True if the file is marked as generated
    */
   isGenerated(filePath) {
+    if (this.resolvedAttributes?.has(filePath)) return this.resolvedAttributes.get(filePath);
     if (this.generatedPatterns.length === 0) {
       return false;
     }
@@ -172,11 +176,28 @@ class GitAttributesParser {
 /**
  * Get generated file patterns from a worktree
  * @param {string} worktreePath - Path to the git worktree
+ * @param {Array<string|Object>|null} files - Paths to resolve using Git's attribute precedence
+ * @param {Object} _deps - Optional Git execution dependency for tests/callers
  * @returns {Promise<GitAttributesParser>} Parser instance with loaded patterns
  */
-async function getGeneratedFilePatterns(worktreePath) {
+async function getGeneratedFilePatterns(worktreePath, files = null, _deps = {}) {
   const parser = new GitAttributesParser();
   await parser.parse(worktreePath);
+  if (files) {
+    // Let Git resolve nested attributes, overrides, unset values, and quoted
+    // patterns. Batch paths to stay below the operating system's argv limit.
+    const { runGit: execute } = { ...defaults, ..._deps };
+    const paths = files.map(file => typeof file === 'string' ? file : file.file);
+    parser.resolvedAttributes = new Map();
+    for (let offset = 0; offset < paths.length; offset += 100) {
+      const { stdout } = await execute('git', ['-C', worktreePath, 'check-attr', '-z',
+        'linguist-generated', '--', ...paths.slice(offset, offset + 100)], { maxBuffer: 10 * 1024 * 1024 });
+      const attributes = stdout.split('\0');
+      for (let i = 0; i + 2 < attributes.length; i += 3) {
+        parser.resolvedAttributes.set(attributes[i], ['set', 'true'].includes(attributes[i + 2]));
+      }
+    }
+  }
   return parser;
 }
 
@@ -187,7 +208,7 @@ async function getGeneratedFilePatterns(worktreePath) {
  * @returns {Promise<Set<string>>} Set of generated file paths
  */
 async function getGeneratedFiles(worktreePath, files) {
-  const parser = await getGeneratedFilePatterns(worktreePath);
+  const parser = await getGeneratedFilePatterns(worktreePath, files);
   const generatedFiles = new Set();
 
   for (const fileObj of files) {
