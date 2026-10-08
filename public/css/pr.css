@@ -14032,3 +14032,11 @@ diffs-container {
     animation: loop-spin 1.4s linear infinite !important;
   }
 }
+
+/* Keep generated diffs and their comments intact when toggling visibility. */
+#diff-container.hide-generated-files > .generated-file {
+  display: none;
+}
+
+.generated-files-empty { display: none; }
+#diff-container.hide-generated-files > .generated-files-empty { display: block; }

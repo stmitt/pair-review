@@ -895,7 +895,9 @@ class GitWorktreeManager {
       ]);
 
       // Parse .gitattributes to identify generated files
-      const gitattributes = await getGeneratedFilePatterns(worktreePath);
+      const gitattributes = await getGeneratedFilePatterns(worktreePath, diffSummary.files.map(file => resolveRenamedFile(file.file)), {
+        runGit: async (_command, args) => ({ stdout: await git.raw(args.slice(2)) })
+      });
 
       return diffSummary.files.map(file => {
         const resolvedFile = resolveRenamedFile(file.file);

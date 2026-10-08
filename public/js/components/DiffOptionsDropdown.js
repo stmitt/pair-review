@@ -4,6 +4,7 @@
  *
  * Anchors a small dropdown below the gear button (#diff-options-btn) with
  * checkbox toggles that control diff rendering.  Supports:
+ *   - "Hide generated files" (also excludes them from change totals)
  *   - "Hide whitespace changes"
  *   - "Minimize comments" (collapse inline comments to line indicators)
  *   - Scope range selector (local mode only)
@@ -36,6 +37,7 @@
  */
 
 const STORAGE_KEY = 'pair-review-hide-whitespace';
+const GENERATED_STORAGE_KEY = 'pair-review-hide-generated';
 const MINIMIZE_STORAGE_KEY = 'pair-review-minimize-comments';
 const DIFF_VIEW_STORAGE_KEY = 'pair-review-diff-view';
 const DIFF_VIEW_VALUES = ['unified', 'split'];
@@ -77,8 +79,9 @@ class DiffOptionsDropdown {
    * @param {{start:string,end:string}} [callbacks.initialScope]
    * @param {boolean} [callbacks.branchAvailable]
    */
-  constructor(buttonElement, { onToggleWhitespace, onToggleMinimize, onScopeChange, onDiffViewChange, diffView, diffViewAvailable, initialScope, branchAvailable, worktreePath }) {
+  constructor(buttonElement, { onToggleGenerated, onToggleWhitespace, onToggleMinimize, onScopeChange, onDiffViewChange, diffView, diffViewAvailable, initialScope, branchAvailable, worktreePath }) {
     this._btn = buttonElement;
+    this._onToggleGenerated = onToggleGenerated || (() => {});
     this._onToggleWhitespace = onToggleWhitespace;
     this._onToggleMinimize = onToggleMinimize || (() => {});
     this._onScopeChange = onScopeChange || null;
@@ -122,6 +125,7 @@ class DiffOptionsDropdown {
     this._scopeStatusEl = null;
 
     // Read persisted state
+    this._hideGenerated = localStorage.getItem(GENERATED_STORAGE_KEY) === 'true';
     this._hideWhitespace = localStorage.getItem(STORAGE_KEY) === 'true';
     this._minimizeComments = localStorage.getItem(MINIMIZE_STORAGE_KEY) === 'true';
 
@@ -154,6 +158,8 @@ class DiffOptionsDropdown {
     };
     this._btn.addEventListener('click', this._btnClickHandler);
 
+    if (this._hideGenerated) this._onToggleGenerated(true);
+
     // Fire initial callbacks so the consumer can apply persisted state
     if (this._hideWhitespace) {
       this._onToggleWhitespace(true);
@@ -166,6 +172,19 @@ class DiffOptionsDropdown {
   // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------
+
+  /** Hide generated files from the diff, sidebar, and change totals. */
+  get hideGenerated() { return this._hideGenerated; }
+
+  set hideGenerated(value) {
+    const bool = Boolean(value);
+    if (bool === this._hideGenerated) return;
+    this._hideGenerated = bool;
+    if (this._generatedCheckbox) this._generatedCheckbox.checked = bool;
+    this._persist();
+    this._syncButtonActive();
+    this._onToggleGenerated(bool);
+  }
 
   /** @returns {boolean} Whether whitespace changes are currently hidden */
   get hideWhitespace() {
@@ -313,6 +332,14 @@ class DiffOptionsDropdown {
       divider.style.margin = '0 20px';
       popover.appendChild(divider);
     }
+
+    const generatedLabel = this._createCheckboxLabel('Hide generated files', this._hideGenerated);
+    this._generatedCheckbox = generatedLabel.querySelector('input');
+    generatedLabel.title = 'Hide files marked linguist-generated in .gitattributes and exclude them from change totals';
+    popover.appendChild(generatedLabel);
+    this._generatedCheckbox.addEventListener('change', () => {
+      this.hideGenerated = this._generatedCheckbox.checked;
+    });
 
     // --- Whitespace checkbox ---
     const wsLabel = this._createCheckboxLabel('Hide whitespace changes', this._hideWhitespace);
@@ -903,6 +930,7 @@ class DiffOptionsDropdown {
   // ---------------------------------------------------------------------------
 
   _persist() {
+    localStorage.setItem(GENERATED_STORAGE_KEY, String(this._hideGenerated));
     localStorage.setItem(STORAGE_KEY, String(this._hideWhitespace));
     localStorage.setItem(MINIMIZE_STORAGE_KEY, String(this._minimizeComments));
     localStorage.setItem(DIFF_VIEW_STORAGE_KEY, this._diffView);
@@ -911,7 +939,7 @@ class DiffOptionsDropdown {
   /** Add/remove `.active` on the gear button as a visual cue that filtering is on. */
   _syncButtonActive() {
     if (!this._btn) return;
-    this._btn.classList.toggle('active', this._hideWhitespace || this._minimizeComments);
+    this._btn.classList.toggle('active', this._hideGenerated || this._hideWhitespace || this._minimizeComments);
   }
 }
 

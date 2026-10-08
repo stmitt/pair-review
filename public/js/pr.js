@@ -125,6 +125,7 @@ class PRManager {
     this.splitButton = null;
     // Generated files - collapsed by default, stores map of filename -> generated info
     this.generatedFiles = new Map();
+    this.hideGenerated = false;
     // User comments storage
     this.userComments = [];
     // Analysis config modal
@@ -417,6 +418,7 @@ class PRManager {
     const diffOptionsBtn = document.getElementById('diff-options-btn');
     if (diffOptionsBtn && window.DiffOptionsDropdown) {
       this.diffOptionsDropdown = new window.DiffOptionsDropdown(diffOptionsBtn, {
+        onToggleGenerated: (hide) => this.handleGeneratedToggle(hide),
         onToggleWhitespace: (hide) => this.handleWhitespaceToggle(hide),
         onToggleMinimize: (minimized) => this.handleMinimizeToggle(minimized),
         onDiffViewChange: (mode) => this.handleDiffViewChange(mode),
@@ -2787,6 +2789,30 @@ class PRManager {
     }
   }
 
+  /** Toggle generated files without rebuilding their diffs or comment state. */
+  handleGeneratedToggle(hide) {
+    this.hideGenerated = Boolean(hide);
+    document.getElementById('diff-container')?.classList.toggle('hide-generated-files', this.hideGenerated);
+    if (this.diffFiles) this.rebuildFileListWithContext();
+  }
+
+  /** Use the displayed diff's file statistics rather than GitHub's unfiltered totals. */
+  updateChangeTotals() {
+    if (!this.diffFiles) return;
+    const files = this.diffFiles.filter(file => !this.hideGenerated || !file.generated);
+    const additions = files.reduce((total, file) => total + (file.insertions ?? file.additions ?? 0), 0);
+    const deletions = files.reduce((total, file) => total + (file.deletions || 0), 0);
+    const values = { 'pr-additions': `+${additions}`, 'pr-deletions': `-${deletions}`,
+      'pr-files-count': `${files.length} file${files.length === 1 ? '' : 's'}` };
+    for (const [id, value] of Object.entries(values)) {
+      const element = document.getElementById(id);
+      if (element) {
+        element.textContent = value;
+        element.title = this.hideGenerated ? 'Excludes generated files' : '';
+      }
+    }
+  }
+
   /**
    * Handle the whitespace visibility toggle from DiffOptionsDropdown.
    * Re-fetches the diff (with or without ?w=1), re-renders it, and
@@ -2996,6 +3022,8 @@ class PRManager {
     if (filesCount) {
       filesCount.textContent = `${pr.file_changes || pr.changed_files?.length || 0} files`;
     }
+
+    this.updateChangeTotals();
 
     // Update commit SHA with copy functionality
     const commitSha = document.getElementById('pr-commit-sha');
@@ -3942,6 +3970,7 @@ class PRManager {
 
     const diffContainer = document.getElementById('diff-container');
     if (!diffContainer) return;
+    diffContainer.classList.toggle('hide-generated-files', this.hideGenerated);
 
     // Tear down any active tour BEFORE wiping the diff DOM: unmountAll()
     // re-collapses files the tour auto-expanded by looking them up via
@@ -4020,6 +4049,13 @@ class PRManager {
             diffContainer.appendChild(fileWrapper);
           }
         });
+
+        if (files.every(file => file.generated)) {
+          const notice = document.createElement('div');
+          notice.className = 'no-diff generated-files-empty';
+          notice.textContent = 'All changed files are generated. Turn off Hide generated files in diff options to inspect them.';
+          diffContainer.appendChild(notice);
+        }
 
         // NOTE: end-of-file gap validation runs per-file inside _renderFileBodyNow
         // now (legacy bodies render lazily), not once globally here.
@@ -7675,6 +7711,8 @@ class PRManager {
 
     // Store diff-only files for merging with context files later
     this.diffFiles = files.filter(f => !f.contextFile);
+    this.updateChangeTotals();
+    files = files.filter(file => file.contextFile || !this.hideGenerated || !file.generated);
 
     // Update sidebar file count badge
     const fileCountEl = document.getElementById('sidebar-file-count');
@@ -7683,7 +7721,8 @@ class PRManager {
     }
 
     if (files.length === 0) {
-      fileListContainer.innerHTML = '<div style="padding: 16px; text-align: center; color: var(--color-text-secondary);">No files changed</div>';
+      const message = this.hideGenerated && this.diffFiles.length ? 'All changed files are generated' : 'No files changed';
+      fileListContainer.innerHTML = `<div style="padding: 16px; text-align: center; color: var(--color-text-secondary);">${message}</div>`;
       return;
     }
 
